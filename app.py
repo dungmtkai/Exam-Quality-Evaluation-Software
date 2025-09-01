@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Import các hàm xử lý từ các file riêng biệt
 from processor_multiple_choice import calculate_question_stats
@@ -60,20 +63,82 @@ if uploaded_file:
                 st.write("### 📐 Thống kê độ phân biệt")
                 st.json(disc_info)
 
-            # ---- Xuất file Excel ----
-            def convert_df_to_excel(df):
+            # ---- Xuất file Word ----
+            def convert_to_word(result_df, summary_df, conclusion, disc_info):
+                doc = Document()
+                
+                # Tiêu đề
+                title = doc.add_heading('BÁO CÁO ĐÁNH GIÁ ĐỘ KHÓ ĐỀ THI TRẮC NGHIỆM', 0)
+                title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                # Kết quả từng câu
+                doc.add_heading('1. Kết quả tính độ khó từng câu', level=1)
+                
+                # Thêm bảng kết quả
+                table = doc.add_table(rows=1, cols=len(result_df.columns))
+                table.style = 'Table Grid'
+                
+                # Header
+                header_cells = table.rows[0].cells
+                for i, col in enumerate(result_df.columns):
+                    header_cells[i].text = str(col)
+                
+                # Data
+                for _, row in result_df.iterrows():
+                    row_cells = table.add_row().cells
+                    for i, val in enumerate(row):
+                        row_cells[i].text = str(val)
+                
+                doc.add_page_break()
+                
+                # Đánh giá tổng quan
+                doc.add_heading('2. Đánh giá tổng quan đề thi', level=1)
+                
+                # Cơ cấu độ khó
+                doc.add_heading('2.1. Cơ cấu độ khó so với mục tiêu', level=2)
+                
+                # Thêm bảng summary
+                summary_table = doc.add_table(rows=1, cols=len(summary_df.columns))
+                summary_table.style = 'Table Grid'
+                
+                # Header
+                header_cells = summary_table.rows[0].cells
+                for i, col in enumerate(summary_df.columns):
+                    header_cells[i].text = str(col)
+                
+                # Data
+                for _, row in summary_df.iterrows():
+                    row_cells = summary_table.add_row().cells
+                    for i, val in enumerate(row):
+                        row_cells[i].text = str(val)
+                
+                doc.add_paragraph()
+                
+                # Thống kê độ phân biệt
+                if disc_info:
+                    doc.add_heading('2.2. Thống kê độ phân biệt', level=2)
+                    for key, value in disc_info.items():
+                        doc.add_paragraph(f'{key}: {value}')
+                
+                doc.add_paragraph()
+                
+                # Kết luận
+                doc.add_heading('3. Kết luận', level=1)
+                conclusion_para = doc.add_paragraph(conclusion)
+                conclusion_para.runs[0].bold = True
+                
+                # Lưu vào BytesIO
                 output = BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Độ khó')
-                processed_data = output.getvalue()
-                return processed_data
-
-            excel_data = convert_df_to_excel(result_df)
+                doc.save(output)
+                output.seek(0)
+                return output.getvalue()
+            
+            word_data = convert_to_word(result_df, summary_df, conclusion, disc_info)
             st.download_button(
-                label="⬇️ Tải kết quả về (.xlsx)",
-                data=excel_data,
-                file_name="do_kho_trac_nghiem.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="⬇️ Tải báo cáo Word (.docx)",
+                data=word_data,
+                file_name="bao_cao_do_kho_trac_nghiem.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
             
         else:  # Tự luận
@@ -138,20 +203,115 @@ if uploaded_file:
                 st.write("### 📐 Thống kê độ phân biệt")
                 st.json(disc_info)
             
-            # ---- Xuất file Excel ----
-            def convert_df_to_excel(df):
+            # ---- Xuất file Word ----
+            def convert_to_word(result_df, summary_df, conclusion, disc_info, max_scores_df=None):
+                doc = Document()
+                
+                # Tiêu đề
+                title = doc.add_heading('BÁO CÁO ĐÁNH GIÁ ĐỘ KHÓ ĐỀ THI TỰ LUẬN', 0)
+                title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                # Kết quả từng câu
+                doc.add_heading('1. Kết quả tính độ khó từng câu', level=1)
+                
+                # Thêm bảng kết quả
+                table = doc.add_table(rows=1, cols=len(result_df.columns))
+                table.style = 'Table Grid'
+                
+                # Header
+                header_cells = table.rows[0].cells
+                for i, col in enumerate(result_df.columns):
+                    header_cells[i].text = str(col)
+                
+                # Data
+                for _, row in result_df.iterrows():
+                    row_cells = table.add_row().cells
+                    for i, val in enumerate(row):
+                        row_cells[i].text = str(val)
+                
+                # Điểm tối đa nếu có
+                if max_scores_df is not None:
+                    doc.add_paragraph()
+                    doc.add_heading('1.1. Điểm tối đa từng câu', level=2)
+                    max_table = doc.add_table(rows=1, cols=len(max_scores_df.columns))
+                    max_table.style = 'Table Grid'
+                    
+                    # Header
+                    header_cells = max_table.rows[0].cells
+                    for i, col in enumerate(max_scores_df.columns):
+                        header_cells[i].text = str(col)
+                    
+                    # Data
+                    for _, row in max_scores_df.iterrows():
+                        row_cells = max_table.add_row().cells
+                        for i, val in enumerate(row):
+                            row_cells[i].text = str(val)
+                
+                doc.add_page_break()
+                
+                # Đánh giá tổng quan
+                doc.add_heading('2. Đánh giá tổng quan đề thi', level=1)
+                
+                # Cơ cấu độ khó
+                doc.add_heading('2.1. Cơ cấu độ khó so với mục tiêu', level=2)
+                
+                # Thêm bảng summary
+                summary_table = doc.add_table(rows=1, cols=len(summary_df.columns))
+                summary_table.style = 'Table Grid'
+                
+                # Header
+                header_cells = summary_table.rows[0].cells
+                for i, col in enumerate(summary_df.columns):
+                    header_cells[i].text = str(col)
+                
+                # Data
+                for _, row in summary_df.iterrows():
+                    row_cells = summary_table.add_row().cells
+                    for i, val in enumerate(row):
+                        row_cells[i].text = str(val)
+                
+                doc.add_paragraph()
+                
+                # Thống kê độ phân biệt
+                if disc_info:
+                    doc.add_heading('2.2. Thống kê độ phân biệt', level=2)
+                    for key, value in disc_info.items():
+                        doc.add_paragraph(f'{key}: {value}')
+                
+                doc.add_paragraph()
+                
+                # Giải thích cách tính
+                doc.add_heading('2.3. Giải thích cách tính', level=2)
+                doc.add_paragraph('Độ khó (P):')
+                doc.add_paragraph('• Công thức: P = (Điểm TB của tất cả SV / Điểm tối đa) × 100', style='List Bullet')
+                doc.add_paragraph('• Điểm tối đa lấy từ sheet 2 hoặc điểm cao nhất thực tế', style='List Bullet')
+                
+                doc.add_paragraph('Độ phân biệt (D):')
+                doc.add_paragraph('• Công thức: D = (Điểm TB nhóm cao - Điểm TB nhóm thấp) / Điểm tối đa', style='List Bullet')
+                doc.add_paragraph('• D ≥ 0.4: Rất tốt', style='List Bullet')
+                doc.add_paragraph('• 0.3 ≤ D < 0.4: Tốt', style='List Bullet')
+                doc.add_paragraph('• 0.2 ≤ D < 0.3: Trung bình', style='List Bullet')
+                doc.add_paragraph('• D < 0.2: Kém', style='List Bullet')
+                
+                doc.add_paragraph()
+                
+                # Kết luận
+                doc.add_heading('3. Kết luận', level=1)
+                conclusion_para = doc.add_paragraph(conclusion)
+                conclusion_para.runs[0].bold = True
+                
+                # Lưu vào BytesIO
                 output = BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Độ khó')
-                processed_data = output.getvalue()
-                return processed_data
+                doc.save(output)
+                output.seek(0)
+                return output.getvalue()
             
-            excel_data = convert_df_to_excel(result_df)
+            word_data = convert_to_word(result_df, summary_df, conclusion, disc_info, max_scores_df)
             st.download_button(
-                label="⬇️ Tải kết quả về (.xlsx)",
-                data=excel_data,
-                file_name="do_kho_tu_luan.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="⬇️ Tải báo cáo Word (.docx)",
+                data=word_data,
+                file_name="bao_cao_do_kho_tu_luan.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
 
     except Exception as e:
