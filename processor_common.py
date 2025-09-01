@@ -36,7 +36,18 @@ def evaluate_exam_difficulty_mix(
     df = stats_df.copy()
 
     # Chuẩn hoá nhóm độ khó: gộp "Rất khó" vào "Khó"
-    df["Mức độ (chuẩn)"] = df["Mức độ"].replace({"Rất khó": "Khó"})
+    # Kiểm tra tên cột có thể là "Mức độ" hoặc "Phân loại độ khó"
+    difficulty_col = None
+    if "Mức độ" in df.columns:
+        difficulty_col = "Mức độ"
+    elif "Phân loại độ khó" in df.columns:
+        difficulty_col = "Phân loại độ khó"
+    else:
+        # In ra các cột có sẵn để debug
+        print(f"Các cột có sẵn trong DataFrame: {df.columns.tolist()}")
+        raise ValueError("Không tìm thấy cột độ khó (Mức độ hoặc Phân loại độ khó)")
+    
+    df["Mức độ (chuẩn)"] = df[difficulty_col].replace({"Rất khó": "Khó"})
 
     # Đếm và tính tỷ lệ thực tế
     total_items = len(df)
